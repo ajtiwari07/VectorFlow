@@ -1,6 +1,6 @@
 # VectorFlow SDK
 
-**VectorFlow** is a .NET SDK that ingests text, generates embeddings via Azure OpenAI, and writes vector records to Azure Cosmos DB in adaptive micro-batches ensuring live user read queries are never degraded by write pressure.
+**VectorFlow** is a .NET SDK that ingests text, generates embeddings via Azure OpenAI, writes vector records to Azure Cosmos DB in adaptive micro-batches, and performs semantic search — ensuring live user read queries are never degraded by write pressure.
 
 ## Why VectorFlow?
 
@@ -10,6 +10,7 @@ Inserting vector embeddings into Cosmos DB triggers index updates that consume h
 - **Adaptive micro-batch scheduling** — respects a configurable RU budget using EWMA-based feedback
 - **Batched embedding generation** — up to 100 texts per Azure OpenAI call
 - **Optional Redis caching** — eliminates redundant embedding calls for duplicate text
+- **Semantic search** — vector similarity search with filtering by user, document, or score threshold
 - **Opaque API** — one client, one options class, no internal plumbing exposed
 
 ## Quick Start
@@ -47,6 +48,35 @@ public class DocumentProcessor(VectorFlowClient vectorFlow)
     }
 }
 ```
+
+## Semantic Search
+
+Search ingested documents by meaning, not just keywords:
+
+```csharp
+// Basic search — returns top 10 most relevant chunks
+var results = await vectorFlow.SearchAsync("quarterly revenue trends");
+
+// Filtered search with options
+var results = await vectorFlow.SearchAsync("budget reports", new SearchOptions
+{
+    TopK = 5,                      // top 5 results
+    ScoreThreshold = 0.7,          // only ≥70% similarity
+    PartitionKey = "user-42",      // scope to a specific user's files
+    DocumentId = "doc-abc-123"     // scope to a specific document
+});
+
+foreach (var r in results)
+{
+    Console.WriteLine($"[{r.Score:P0}] {r.DocumentId} (chunk {r.ChunkIndex}): {r.Text[..80]}...");
+}
+```
+
+### How it works
+1. Embeds your query using the same OpenAI model used for ingestion
+2. Runs a Cosmos DB `VectorDistance` query against the DiskANN index
+3. Filters by partition key / document ID if specified
+4. Returns ranked results above the score threshold
 
 ## Authentication
 
@@ -99,6 +129,7 @@ All internal components are `internal` — consumers only interact with `VectorF
 | `MaxConcurrentEmbeddingCalls` | 3 | Parallel embedding requests |
 | `MinFlushInterval` | 500ms | Minimum time between writes |
 | `MaxFlushInterval` | 10s | Maximum time between writes |
+| `EnableSearch` | true | Enable/disable semantic search capability |
 
 ## Benchmark Results
 
@@ -148,6 +179,7 @@ VectorFlow/
 │   ├── Buffering/           # ChannelBuffer (bounded async queue)
 │   ├── Embedding/           # Azure OpenAI + Redis cache
 │   ├── Scheduling/          # Adaptive write scheduler (EWMA)
+│   ├── Search/              # Semantic vector search
 │   ├── Writing/             # Cosmos DB batch writer
 │   ├── VectorFlowClient.cs  # Public entry point
 │   ├── VectorFlowOptions.cs # Public configuration
