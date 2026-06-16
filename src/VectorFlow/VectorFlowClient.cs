@@ -119,9 +119,9 @@ public class VectorFlowClient : IAsyncDisposable
             writer,
             writer is CosmosBatchWriter cosmosWriter
                 ? cosmosWriter.Container
-                : throw new ArgumentException("A Cosmos container is required to enable search support.", nameof(writer)),
+                : null!,
             scheduler,
-            true,
+            writer is CosmosBatchWriter,
             logger)
     {
     }
@@ -271,9 +271,11 @@ public class VectorFlowClient : IAsyncDisposable
     {
         _logger.LogInformation("Flush requested. Pending: {Pending}", _buffer.PendingCount);
 
-        while (_buffer.PendingCount > 0)
+        // Wait until all ingested records have been written (not just dequeued from buffer)
+        var ingested = Interlocked.Read(ref _totalRecordsIngested);
+        while (Interlocked.Read(ref _totalRecordsWritten) < ingested)
         {
-            await Task.Delay(100, cancellationToken);
+            await Task.Delay(50, cancellationToken);
         }
 
         _logger.LogInformation("Flush complete. Total written: {Written}", Interlocked.Read(ref _totalRecordsWritten));
@@ -303,16 +305,8 @@ public class VectorFlowClient : IAsyncDisposable
                 // Wait for the scheduled interval
                 await Task.Delay(schedule.DelayBeforeFlush, cancellationToken);
 
-                // Drain up to batch size from buffer
-                var batch = new List<VectorRecord>(schedule.BatchSize);
-
-                // Use a synchronous TryRead loop since we've already waited
-                await foreach (var chunk in _buffer.ConsumeBatchesAsync(
-                    schedule.BatchSize, schedule.DelayBeforeFlush, cancellationToken))
-                {
-                    batch.AddRange(chunk);
-                    break; // take one batch per cycle
-                }
+                // Non-blocking drain: read whatever is available up to batch size
+                var batch = _buffer.TryReadBatch(schedule.BatchSize);
 
                 if (batch.Count == 0) continue;
 
@@ -325,7 +319,7 @@ public class VectorFlowClient : IAsyncDisposable
                     Interlocked.Add(ref _totalRecordsWritten, result.RecordsWritten);
                     Interlocked.Exchange(ref _totalRuConsumed, _totalRuConsumed + result.CostUnitsConsumed);
 
-                    _logger.LogInformation(
+                    _logger.LogDebug(
                         "Wrote {Count} records ({RU:F0} RU, {Ms:F0}ms). Pending: {Pending}",
                         result.RecordsWritten, result.CostUnitsConsumed,
                         result.Duration.TotalMilliseconds, _buffer.PendingCount);
@@ -352,8 +346,13 @@ public class VectorFlowClient : IAsyncDisposable
         }
     }
 
+    private int _disposed;
+
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+            return;
+
         _drainCts.Cancel();
         try { await _drainTask; } catch (OperationCanceledException) { }
         _drainCts.Dispose();

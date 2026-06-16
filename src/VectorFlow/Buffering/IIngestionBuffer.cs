@@ -24,6 +24,12 @@ internal interface IIngestionBuffer<T>
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Try to read up to maxCount items without blocking.
+    /// Returns items immediately available in the buffer.
+    /// </summary>
+    IReadOnlyList<T> TryReadBatch(int maxCount);
+
+    /// <summary>
     /// Current number of items waiting in the buffer.
     /// </summary>
     int PendingCount { get; }

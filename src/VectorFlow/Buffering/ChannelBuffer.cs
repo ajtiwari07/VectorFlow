@@ -33,6 +33,16 @@ internal class ChannelBuffer<T> : IIngestionBuffer<T>
         }
     }
 
+    public IReadOnlyList<T> TryReadBatch(int maxCount)
+    {
+        var batch = new List<T>(maxCount);
+        while (batch.Count < maxCount && _channel.Reader.TryRead(out var item))
+        {
+            batch.Add(item);
+        }
+        return batch;
+    }
+
     public async IAsyncEnumerable<IReadOnlyList<T>> ConsumeBatchesAsync(
         int batchSize,
         TimeSpan flushInterval,
