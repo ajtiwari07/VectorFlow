@@ -2,9 +2,63 @@
 
 **VectorFlow** is a .NET SDK that ingests text, generates embeddings via Azure OpenAI, writes vector records to Azure Cosmos DB in adaptive micro-batches, and performs semantic search — ensuring live user read queries are never degraded by write pressure.
 
-## Why VectorFlow?
+## The Problem
 
-Inserting vector embeddings into Cosmos DB triggers index updates that consume high RUs. Naïve bulk writes can starve concurrent read queries. VectorFlow solves this with:
+When building AI-powered document search applications on Azure Cosmos DB, developers face a fundamental challenge: **vector ingestion competes with user queries for the same RU budget.**
+
+A typical scenario:
+- A user uploads a 200-page PDF → needs to be chunked, embedded, and written to Cosmos
+- Meanwhile, other users are actively searching their documents
+- Naïve bulk writes consume all available RUs → search queries get throttled (HTTP 429)
+- Users experience degraded search performance every time someone uploads a file
+
+Existing solutions (LangChain, Semantic Kernel, LlamaIndex) treat writes as fire-and-forget — they offer no mechanism to control write throughput relative to a shared RU budget.
+
+## How VectorFlow Solves This
+
+VectorFlow introduces an **adaptive write engine** that acts like cruise control between your application and Cosmos DB:
+
+```
+Your App                    VectorFlow                         Azure
+────────                    ──────────                         ─────
+IngestAsync() ──→ [Buffer] ──→ [Embed] ──→ [Schedule] ──→ [Write] ──→ Cosmos DB
+     ↑               │                        ↑    │                      │
+  returns          bounded                  EWMA   └─── delay ───┐       │
+ immediately     backpressure             feedback                │       │
+                                              └──── actual RU cost ──────┘
+```
+
+The scheduler **observes real-time RU costs** from every write, adjusts batch sizes and timing using exponential smoothing (EWMA), and guarantees your write operations never exceed a configurable budget — leaving the rest of your RUs free for search queries.
+
+## Key Capabilities
+
+| Capability | What it does | Why it matters |
+|-----------|-------------|----------------|
+| **Adaptive Scheduling** | Adjusts write batch size & timing based on observed RU costs | Search queries stay fast during bulk ingestion |
+| **RU Budget Control** | Enforces a ceiling on write RU/s consumption | Predictable costs, no throttling surprises |
+| **Backpressure Buffering** | Bounded async channel with automatic flow control | No OOM risk, no thread blocking |
+| **Batched Embeddings** | Groups up to 100 texts per API call | 99% fewer network round-trips |
+| **Redis Embedding Cache** | Caches vectors for identical text | Re-uploads cost zero, common text embedded once |
+| **Semantic Search** | Vector similarity with partition/document filtering | Full read+write lifecycle in one SDK |
+| **Silent Retry** | Failed writes re-enqueue automatically | No data loss without complex error handling |
+
+## What Makes VectorFlow Different
+
+Unlike RAG frameworks that focus on orchestrating LLM conversations, VectorFlow focuses on the **data plane** — getting vectors into and out of your database efficiently and safely:
+
+| | LangChain | Semantic Kernel | LlamaIndex | **VectorFlow** |
+|--|-----------|----------------|------------|--------------|
+| Adaptive write scheduling | ❌ | ❌ | ❌ | ✅ |
+| RU budget isolation | ❌ | ❌ | ❌ | ✅ |
+| Backpressure-aware buffering | ❌ | ❌ | ❌ | ✅ |
+| Embedding deduplication cache | ❌ | ❌ | ❌ | ✅ |
+| Auto-retry with re-enqueue | ❌ | Partial | ❌ | ✅ |
+| Cosmos DB native vector search | ❌ | ✅ | ❌ | ✅ |
+| LLM/RAG orchestration | ✅ | ✅ | ✅ | ❌ (not the goal) |
+
+**VectorFlow is not a RAG framework** — it's a purpose-built ingestion and search engine for Azure Cosmos DB workloads where cost control, read/write isolation, and throughput optimization matter.
+
+## Why VectorFlow?
 
 - **Memory-buffered ingestion** — callers return immediately, no blocking
 - **Adaptive micro-batch scheduling** — respects a configurable RU budget using EWMA-based feedback
