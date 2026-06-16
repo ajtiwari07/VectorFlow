@@ -23,6 +23,11 @@ public class VectorFlowOptions
     public string CosmosContainer { get; set; } = default!;
 
     /// <summary>
+    /// Enables semantic search over the configured Cosmos DB container.
+    /// </summary>
+    public bool EnableSearch { get; set; } = true;
+
+    /// <summary>
     /// Azure OpenAI endpoint (e.g., https://your-resource.openai.azure.com/)
     /// </summary>
     public string OpenAIEndpoint { get; set; } = default!;

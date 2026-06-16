@@ -12,6 +12,8 @@ internal class CosmosBatchWriter : IBatchWriter
     private readonly Container _container;
     private readonly ILogger<CosmosBatchWriter> _logger;
 
+    internal Container Container => _container;
+
     public CosmosBatchWriter(Container container, ILogger<CosmosBatchWriter>? logger = null)
     {
         _container = container;
