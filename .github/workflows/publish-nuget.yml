@@ -1,0 +1,62 @@
+name: Publish NuGet package
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish to NuGet.org
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Validate release tag
+        id: version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
+            echo "Release tag must use SemVer format: vX.Y.Z or vX.Y.Z-prerelease" >&2
+            exit 1
+          fi
+          echo "value=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: dotnet test tests/VectorFlow.Tests/VectorFlow.Tests.csproj --configuration Release --nologo
+
+      - name: Pack
+        run: >
+          dotnet pack src/VectorFlow/VectorFlow.csproj
+          --configuration Release
+          --output artifacts/packages
+          --nologo
+          -p:PackageVersion=${{ steps.version.outputs.value }}
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Authenticate to NuGet.org
+        id: nuget
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Publish
+        run: >
+          dotnet nuget push "artifacts/packages/VectorFlow.${{ steps.version.outputs.value }}.nupkg"
+          --api-key "${{ steps.nuget.outputs.NUGET_API_KEY }}"
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate

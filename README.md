@@ -161,6 +161,21 @@ VectorFlowClient
 
 All internal components are `internal` — consumers only interact with `VectorFlowClient` and `VectorFlowOptions`.
 
+## Publishing
+
+NuGet packages are published automatically when a GitHub Release is published with a
+SemVer tag such as `v0.1.0-beta.1` or `v1.0.0`.
+
+One-time repository setup:
+
+1. Add a GitHub repository variable named `NUGET_USER` containing your NuGet.org username.
+2. On NuGet.org, create a Trusted Publishing policy for owner `ajtiwari07`, repository
+   `VectorFlow`, and workflow file `publish-nuget.yml`.
+3. Publish a GitHub Release. The workflow tests, packs, and publishes the tag version.
+
+The initial release should use a prerelease tag while VectorFlow depends on a prerelease
+version of `Azure.AI.OpenAI`.
+
 ## Configuration
 
 | Option | Default | Description |

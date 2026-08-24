@@ -8,8 +8,18 @@
     <Description>SDK for embedding, buffering, and writing vectors to Azure Cosmos DB with mathematically optimized micro-batch scheduling that protects live read queries.</Description>
     <Authors>AJ Tiwari</Authors>
     <Version>0.1.0</Version>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/ajtiwari07/VectorFlow</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ajtiwari07/VectorFlow.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>azure;cosmos-db;vector-search;embeddings;openai</PackageTags>
     <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
