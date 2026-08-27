@@ -1,10 +1,10 @@
 # VectorFlow SDK
 
-**VectorFlow** is a .NET SDK that ingests text, generates embeddings via Azure OpenAI, writes vector records to Azure Cosmos DB in adaptive micro-batches, and performs semantic search — ensuring live user read queries are never degraded by write pressure.
+**VectorFlow** is a .NET SDK that ingests text, generates embeddings via OpenAI, writes vector records to Cosmos in adaptive micro-batches, and performs semantic search — ensuring live user read queries are never degraded by write pressure.
 
 ## The Problem
 
-When building AI-powered document search applications on Azure Cosmos DB, developers face a fundamental challenge: **vector ingestion competes with user queries for the same RU budget.**
+When building AI-powered document search applications on Cosmos, developers face a fundamental challenge: **vector ingestion competes with user queries for the same RU budget.**
 
 A typical scenario:
 - A user uploads a 200-page PDF → needs to be chunked, embedded, and written to Cosmos
@@ -16,12 +16,12 @@ Existing solutions (LangChain, Semantic Kernel, LlamaIndex) treat writes as fire
 
 ## How VectorFlow Solves This
 
-VectorFlow introduces an **adaptive write engine** that acts like cruise control between your application and Cosmos DB:
+VectorFlow introduces an **adaptive write engine** that acts like cruise control between your application and Cosmos:
 
 ```
-Your App                    VectorFlow                         Azure
-────────                    ──────────                         ─────
-IngestAsync() ──→ [Buffer] ──→ [Embed] ──→ [Schedule] ──→ [Write] ──→ Cosmos DB
+Your App                    VectorFlow                         Services
+────────                    ──────────                         ────────
+IngestAsync() ──→ [Buffer] ──→ [Embed] ──→ [Schedule] ──→ [Write] ──→ Cosmos
      ↑               │                        ↑    │                      │
   returns          bounded                  EWMA   └─── delay ───┐       │
  immediately     backpressure             feedback                │       │
@@ -38,7 +38,7 @@ The scheduler **observes real-time RU costs** from every write, adjusts batch si
 | **RU Budget Control** | Enforces a ceiling on write RU/s consumption | Predictable costs, no throttling surprises |
 | **Backpressure Buffering** | Bounded async channel with automatic flow control | No OOM risk, no thread blocking |
 | **Batched Embeddings** | Groups up to 100 texts per API call | 99% fewer network round-trips |
-| **Redis Embedding Cache** | Caches vectors for identical text | Re-uploads cost zero, common text embedded once |
+| **Optional Embedding Cache** | Caches vectors for identical text | Re-uploads cost zero, common text embedded once |
 | **Semantic Search** | Vector similarity with partition/document filtering | Full read+write lifecycle in one SDK |
 | **Silent Retry** | Failed writes re-enqueue automatically | No data loss without complex error handling |
 
@@ -53,17 +53,17 @@ Unlike RAG frameworks that focus on orchestrating LLM conversations, VectorFlow 
 | Backpressure-aware buffering | ❌ | ❌ | ❌ | ✅ |
 | Embedding deduplication cache | ❌ | ❌ | ❌ | ✅ |
 | Auto-retry with re-enqueue | ❌ | Partial | ❌ | ✅ |
-| Cosmos DB native vector search | ❌ | ✅ | ❌ | ✅ |
+| Cosmos native vector search | ❌ | ✅ | ❌ | ✅ |
 | LLM/RAG orchestration | ✅ | ✅ | ✅ | ❌ (not the goal) |
 
-**VectorFlow is not a RAG framework** — it's a purpose-built ingestion and search engine for Azure Cosmos DB workloads where cost control, read/write isolation, and throughput optimization matter.
+**VectorFlow is not a RAG framework** — it's a purpose-built ingestion and search engine for Cosmos workloads where cost control, read/write isolation, and throughput optimization matter.
 
 ## Why VectorFlow?
 
 - **Memory-buffered ingestion** — callers return immediately, no blocking
 - **Adaptive micro-batch scheduling** — respects a configurable RU budget using EWMA-based feedback
-- **Batched embedding generation** — up to 100 texts per Azure OpenAI call
-- **Optional Redis caching** — eliminates redundant embedding calls for duplicate text
+- **Batched embedding generation** — up to 100 texts per OpenAI call
+- **Optional embedding caching** — eliminates redundant embedding calls for duplicate text
 - **Semantic search** — vector similarity search with filtering by user, document, or score threshold
 - **Opaque API** — one client, one options class, no internal plumbing exposed
 
@@ -74,17 +74,17 @@ using VectorFlow;
 
 services.AddVectorFlow(options =>
 {
-    // Cosmos DB
-    options.CosmosEndpoint = "https://your-account.documents.azure.com:443/";
+    // Cosmos
+    options.CosmosEndpoint = "https://your-cosmos-endpoint/";
     options.CosmosDatabase = "mydb";
     options.CosmosContainer = "vectors";
 
-    // Azure OpenAI
-    options.OpenAIEndpoint = "https://your-openai.openai.azure.com/";
+    // OpenAI
+    options.OpenAIEndpoint = "https://your-openai-endpoint/";
     options.OpenAIDeployment = "text-embedding-ada-002";
 
-    // Optional: Redis embedding cache
-    options.RedisConnectionString = "your-redis.redis.cache.windows.net:6380,...";
+    // Optional embedding cache
+    options.RedisConnectionString = "your-cache-connection-string";
 
     // Optional: tuning
     options.WriteRuBudgetPerSecond = 400;
@@ -128,7 +128,7 @@ foreach (var r in results)
 
 ### How it works
 1. Embeds your query using the same OpenAI model used for ingestion
-2. Runs a Cosmos DB `VectorDistance` query against the DiskANN index
+2. Runs a Cosmos `VectorDistance` query against the DiskANN index
 3. Filters by partition key / document ID if specified
 4. Returns ranked results above the score threshold
 
@@ -138,26 +138,19 @@ Supports three patterns:
 
 | Method | Config |
 |--------|--------|
-| **Managed Identity** (default) | `options.Credential = new DefaultAzureCredential()` or omit |
+| **Token credential** (default) | Set `options.Credential` or omit to use the default credential chain |
 | **API Keys** | `options.CosmosKey = "..."` and/or `options.OpenAIKey = "..."` |
-| **Mixed** | Managed identity for one, key for the other |
+| **Mixed** | Token credential for one service, API key for the other |
 
 API keys take priority when set for a specific service.
 
 ## Architecture
 
-```
-VectorFlowClient
-  │
-  ├─→ CachedEmbeddingService (optional Redis layer)
-  │     └─→ EmbeddingBatcher → Azure OpenAI (batched, rate-limited)
-  │
-  ├─→ ChannelBuffer (bounded async queue with backpressure)
-  │
-  ├─→ AdaptiveWriteScheduler (RU budget → batch size + timing)
-  │
-  └─→ CosmosBatchWriter (micro-batch upserts, reports RU back)
-```
+![VectorFlow SDK architecture](docs/vectorflow-architecture.svg)
+
+The diagram separates the buffered ingestion path from semantic search and shows the
+RU-cost feedback loop that controls write pressure. See the
+[detailed architecture notes](docs/architecture.md) for a step-by-step description.
 
 All internal components are `internal` — consumers only interact with `VectorFlowClient` and `VectorFlowOptions`.
 
@@ -174,19 +167,19 @@ One-time repository setup:
 3. Publish a GitHub Release. The workflow tests, packs, and publishes the tag version.
 
 The initial release should use a prerelease tag while VectorFlow depends on a prerelease
-version of `Azure.AI.OpenAI`.
+OpenAI client library.
 
 ## Configuration
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `CosmosEndpoint` | required | Cosmos DB account endpoint |
+| `CosmosEndpoint` | required | Cosmos account endpoint |
 | `CosmosDatabase` | required | Database name |
 | `CosmosContainer` | required | Container for vector records |
-| `OpenAIEndpoint` | required | Azure OpenAI endpoint |
+| `OpenAIEndpoint` | required | OpenAI endpoint |
 | `OpenAIDeployment` | required | Embedding model deployment |
 | `EmbeddingDimensions` | 1536 | Vector dimensions |
-| `Credential` | DefaultAzureCredential | TokenCredential for both services |
+| `Credential` | Default credential chain | Token credential for both services |
 | `CosmosKey` | null | Cosmos account key (overrides Credential) |
 | `OpenAIKey` | null | OpenAI API key (overrides Credential) |
 | `RedisConnectionString` | null | Enables embedding cache if set |
@@ -204,7 +197,7 @@ version of `Azure.AI.OpenAI`.
 
 ### Performance Comparison: Naive vs VectorFlow
 
-Tested with simulated Azure services matching real-world latencies (150ms per embedding API call, 10ms per Cosmos write, 30 RU per vector upsert):
+Tested with simulated services matching real-world latencies (150ms per embedding API call, 10ms per Cosmos write, 30 RU per vector upsert):
 
 | Document Size | Chunks | Naive (Sequential) | VectorFlow | Speedup |
 |---------------|--------|-------------------|------------|---------|
@@ -227,15 +220,15 @@ Tested with simulated Azure services matching real-world latencies (150ms per em
 | Scenario | Without VectorFlow | With VectorFlow | Savings |
 |----------|--------------------|-----------------|---------|
 | 500-chunk ingestion (API calls) | 500 network round-trips | 5 network round-trips | 99% latency reduction |
-| Re-upload same document (with Redis cache) | Full re-embedding cost | 0 API calls | **100% embedding cost eliminated** |
+| Re-upload same document (with cache) | Full re-embedding cost | 0 API calls | **100% embedding cost eliminated** |
 | Concurrent users searching during ingestion | Search queries throttled (RU contention) | Searches unaffected (budget-controlled writes) | **Zero read degradation** |
 
 ### When VectorFlow Shines Most
 
 - **Large documents** (100+ chunks): 99% fewer API calls, ~1.8x faster
 - **Concurrent workloads**: Scheduler prevents write RU spikes from impacting search queries
-- **Retry/re-upload scenarios**: Redis cache eliminates redundant embedding costs
-- **Serverless Cosmos DB**: RU budget control prevents 429 throttling
+- **Retry/re-upload scenarios**: Optional caching eliminates redundant embedding costs
+- **Serverless Cosmos**: RU budget control prevents 429 throttling
 - **Batch migrations**: Controlled throughput without burning provisioned capacity
 
 See [docs/benchmark-results.md](docs/benchmark-results.md) for full methodology and detailed analysis.
@@ -246,10 +239,10 @@ See [docs/benchmark-results.md](docs/benchmark-results.md) for full methodology 
 VectorFlow/
 ├── src/VectorFlow/          # SDK source
 │   ├── Buffering/           # ChannelBuffer (bounded async queue)
-│   ├── Embedding/           # Azure OpenAI + Redis cache
+│   ├── Embedding/           # OpenAI + optional cache
 │   ├── Scheduling/          # Adaptive write scheduler (EWMA)
 │   ├── Search/              # Semantic vector search
-│   ├── Writing/             # Cosmos DB batch writer
+│   ├── Writing/             # Cosmos batch writer
 │   ├── VectorFlowClient.cs  # Public entry point
 │   ├── VectorFlowOptions.cs # Public configuration
 │   └── VectorFlowServiceExtensions.cs  # DI helper
@@ -264,7 +257,7 @@ VectorFlow/
 dotnet run --project tests/VectorFlow.Benchmarks
 ```
 
-No Azure credentials required — uses simulated services with realistic latencies.
+No cloud credentials required — uses simulated services with realistic latencies.
 
 ## License
 
