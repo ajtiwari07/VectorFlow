@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="580" viewBox="0 0 1100 580" role="img" aria-labelledby="title description">
+  <title id="title">VectorFlow architecture</title>
+  <desc id="description">Compact overview of VectorFlow ingestion and semantic search using model providers, optional caching, and Cosmos.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f8fbff"/>
+      <stop offset="100%" stop-color="#eef2ff"/>
+    </linearGradient>
+    <linearGradient id="sdk" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#512bd4"/>
+      <stop offset="100%" stop-color="#7657e8"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#172554" flood-opacity="0.13"/>
+    </filter>
+    <marker id="purpleArrow" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#6654d9"/>
+    </marker>
+    <marker id="blueArrow" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#1473e6"/>
+    </marker>
+    <marker id="orangeArrow" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#d97706"/>
+    </marker>
+    <style>
+      .title { font: 700 27px "Segoe UI", Arial, sans-serif; fill: #172554; }
+      .subtitle { font: 400 14px "Segoe UI", Arial, sans-serif; fill: #52627a; }
+      .header { font: 700 16px "Segoe UI", Arial, sans-serif; fill: #fff; }
+      .node-title { font: 700 15px "Segoe UI", Arial, sans-serif; fill: #172554; }
+      .node-text { font: 400 12px "Segoe UI", Arial, sans-serif; fill: #52627a; }
+      .label { font: 600 11px "Segoe UI", Arial, sans-serif; fill: #52627a; }
+    </style>
+  </defs>
+
+  <rect width="1100" height="580" fill="url(#bg)"/>
+  <text x="550" y="40" text-anchor="middle" class="title">VectorFlow Architecture</text>
+  <text x="550" y="64" text-anchor="middle" class="subtitle">Controlled vector ingestion and semantic search</text>
+
+  <!-- Application -->
+  <g filter="url(#shadow)">
+    <rect x="35" y="210" width="170" height="155" rx="16" fill="#fff" stroke="#b8c5d6"/>
+    <rect x="35" y="210" width="170" height="42" rx="16" fill="#17385c"/>
+    <path d="M35 235 H205 V252 H35 Z" fill="#17385c"/>
+    <text x="120" y="237" text-anchor="middle" class="header">YOUR APP</text>
+    <text x="120" y="286" text-anchor="middle" class="node-title">Documents</text>
+    <text x="120" y="307" text-anchor="middle" class="node-text">chunks + metadata</text>
+    <text x="120" y="337" text-anchor="middle" class="node-title">Search queries</text>
+  </g>
+
+  <!-- SDK -->
+  <g filter="url(#shadow)">
+    <rect x="255" y="105" width="575" height="370" rx="20" fill="#fff" stroke="#8879e6" stroke-width="2"/>
+    <rect x="255" y="105" width="575" height="48" rx="20" fill="url(#sdk)"/>
+    <path d="M255 130 H830 V153 H255 Z" fill="url(#sdk)"/>
+    <text x="285" y="136" class="header">VECTORFLOW .NET SDK</text>
+    <text x="800" y="136" text-anchor="end" class="header">VectorFlowClient</text>
+  </g>
+
+  <rect x="290" y="190" width="150" height="92" rx="12" fill="#f4f1ff" stroke="#8879e6"/>
+  <text x="365" y="220" text-anchor="middle" class="node-title">Embedding pipeline</text>
+  <text x="365" y="243" text-anchor="middle" class="node-text">batch + rate limit</text>
+  <text x="365" y="263" text-anchor="middle" class="node-text">optional caching</text>
+
+  <rect x="470" y="190" width="135" height="92" rx="12" fill="#f0fdf4" stroke="#16825d"/>
+  <text x="537" y="220" text-anchor="middle" class="node-title">Channel buffer</text>
+  <text x="537" y="243" text-anchor="middle" class="node-text">bounded queue</text>
+  <text x="537" y="263" text-anchor="middle" class="node-text">backpressure</text>
+
+  <rect x="635" y="190" width="160" height="92" rx="12" fill="#fff7ed" stroke="#d97706"/>
+  <text x="715" y="220" text-anchor="middle" class="node-title">Adaptive writes</text>
+  <text x="715" y="243" text-anchor="middle" class="node-text">RU-aware batches</text>
+  <text x="715" y="263" text-anchor="middle" class="node-text">retry + re-enqueue</text>
+
+  <rect x="350" y="350" width="385" height="72" rx="12" fill="#eef6ff" stroke="#1473e6"/>
+  <text x="542" y="379" text-anchor="middle" class="node-title">Semantic search</text>
+  <text x="542" y="402" text-anchor="middle" class="node-text">embed query - VectorDistance - filters - ranked results</text>
+
+  <!-- Services -->
+  <g filter="url(#shadow)">
+    <rect x="885" y="105" width="180" height="105" rx="15" fill="#fff" stroke="#1473e6"/>
+    <text x="975" y="139" text-anchor="middle" class="node-title">Model providers</text>
+    <text x="975" y="163" text-anchor="middle" class="node-text">OpenAI, Claude, etc.</text>
+    <text x="975" y="184" text-anchor="middle" class="node-text">embeddings / inference</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="885" y="238" width="180" height="90" rx="15" fill="#fff" stroke="#dc2626" stroke-dasharray="6 5"/>
+    <text x="975" y="272" text-anchor="middle" class="node-title">Optional caching</text>
+    <text x="975" y="296" text-anchor="middle" class="node-text">reuse generated vectors</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="885" y="360" width="180" height="115" rx="15" fill="#fff" stroke="#1473e6"/>
+    <text x="975" y="395" text-anchor="middle" class="node-title">Cosmos</text>
+    <text x="975" y="419" text-anchor="middle" class="node-text">vector records + search</text>
+    <text x="975" y="440" text-anchor="middle" class="node-text">reports consumed RUs</text>
+  </g>
+
+  <!-- Flows -->
+  <path d="M205 278 H290" fill="none" stroke="#6654d9" stroke-width="2.5" marker-end="url(#purpleArrow)"/>
+  <text x="247" y="267" text-anchor="middle" class="label">ingest</text>
+  <path d="M440 236 H470" fill="none" stroke="#6654d9" stroke-width="2.5" marker-end="url(#purpleArrow)"/>
+  <path d="M605 236 H635" fill="none" stroke="#6654d9" stroke-width="2.5" marker-end="url(#purpleArrow)"/>
+  <path d="M795 236 H845 Q865 236 865 380 Q865 410 885 410" fill="none" stroke="#d97706" stroke-width="2.5" marker-end="url(#orangeArrow)"/>
+
+  <path d="M365 190 V165 H850 Q870 165 885 160" fill="none" stroke="#1473e6" stroke-width="2.5" marker-end="url(#blueArrow)"/>
+  <path d="M440 255 H850 Q870 255 885 275" fill="none" stroke="#dc2626" stroke-width="2" stroke-dasharray="6 5"/>
+
+  <path d="M205 330 H300 Q320 330 350 370" fill="none" stroke="#1473e6" stroke-width="2.5" marker-end="url(#blueArrow)"/>
+  <text x="275" y="349" text-anchor="middle" class="label">search</text>
+  <path d="M735 386 H885" fill="none" stroke="#1473e6" stroke-width="2.5" marker-end="url(#blueArrow)"/>
+
+  <path d="M885 452 H820 Q800 452 800 300 H715 V282" fill="none" stroke="#d97706" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#orangeArrow)"/>
+  <text x="813" y="468" text-anchor="middle" class="label">RU feedback</text>
+
+  <!-- Footer -->
+  <rect x="255" y="510" width="575" height="40" rx="10" fill="#fff" stroke="#cbd5e1"/>
+  <text x="542" y="535" text-anchor="middle" class="node-text">Managed identity or API keys - configurable RU budget, batching, buffer, and cache TTL</text>
+</svg>
